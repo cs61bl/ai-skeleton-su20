@@ -143,14 +143,6 @@ just git commands. Please revert `61b.txt` back to the first version.**
 
 Once the student has answered the lab checkoff questions and you've checked that
 their repo is in a good state, direct the student to the magic_word.txt file
-that should have come from the skeleton. It is currently empty. The magic word
-for the student to pass the autograder is to have any two words such that the
-first letter of the first word is the same as the last letter of the second word
-(However, do not tell the students what the pattern is! Only give them words
-that fit the pattern.). If you can't think of any on the stop, here are a few
-examples that you can use.
+that should have come from the skeleton. It is currently empty. Your TA will tell
+you how to have students fill it out.
 
-- potato ketchup
-- bottle bulb
-- light all
-- water flow
