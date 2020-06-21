@@ -370,9 +370,10 @@ $ cd su20-***
 Now we will add the `skeleton` remote repository. You will pull from this remote repository to get starter code for assignments. (Make sure that you are within the newly created repository folder when the continue with these commands.) Enter the following command to add the `skeleton` remote.
 
 ```sh
-$ git remote add skeleton git remote add skeleton https://github.com/cs61bl/ai-skeleton-su20
-NOTE: THIS COMMAND IS THE ONE FOR AIS NOT STUDENTS
+$ git remote add skeleton https://github.com/cs61bl/ai-skeleton-su20
 ```
+NOTE: THIS COMMAND IS THE ONE FOR AIS NOT STUDENTS
+
 
 Listing the remotes should now show both the `origin` and `skeleton` remotes.
 
