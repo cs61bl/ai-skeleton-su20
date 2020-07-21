@@ -17,8 +17,20 @@ public class RedBlackTree<T extends Comparable<T>> {
     /* Builds a RedBlackTree that has isometry with given 2-3-4 tree rooted at
        given node R, and returns the root node. */
     RBTreeNode<T> buildRedBlackTree(Node<T> r) {
-        // TODO: YOUR CODE HERE
-        return null;
+        if (r == null) {
+            return null;
+        }
+
+        if (r.getItemCount() == 1) {
+            // TODO: Replace with code to create a 2 node equivalent
+            return null
+        } else if (r.getItemCount() == 2) {
+            // TODO: Replace with code to create a 3 node equivalent
+            return null
+        } else {
+            // TODO: Replace with code to create a 4 node equivalent
+            return null
+        }
     }
 
     /* Flips the color of NODE and its children. Assume that NODE has both left
@@ -43,8 +55,14 @@ public class RedBlackTree<T extends Comparable<T>> {
         return null;
     }
 
-    void insert(RBTreeNode<T> node) {
+    public void insert(T item) {   
+        root = insert(root, item);  
+        root.isBlack = true;    
+    }
+
+    private RBTreeNode<T> insert(RBTreeNode<T> node, T item) {
         // TODO: YOUR CODE HERE
+        return null;
     }
 
     /* Returns whether the given node NODE is red. Null nodes (children of leaf
