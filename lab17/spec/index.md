@@ -1,691 +1,730 @@
 ---
 layout: page
-title: "Lab 16: Hash Tables"
-tags: [Lab, Hash Tables]
-released: true
+title: "Lab 17: Heaps and Priority Queues"
+tags: [Lab, Heaps, Priority Queues]
+released: false
 ---
 
 ## Introduction
 
 As usual, pull the files from the skeleton and make a new IntelliJ project.
 
-This lab is on the long side, so make sure to pair program!
+We've learned about a few abstract data types already, including the *stack* and
+*queue*. The *stack* is a last-in-first-out (LIFO) abstract data type where,
+much like a physical stack, one can only access the top of the stack and must
+pop off recently added elements to retrieve previously added elements. The
+*queue* is a first-in-first-out (FIFO) abstract data type. When we process items
+in a queue, we process the oldest elements first and the most recently added
+elements last.
 
-Similarly, the provided `HashMapTest` is fairly limited. We will discuss the suggested
-testing steps below, but ensure you are creating your own tests for all versions
-of your data structure. Note, do not import `java.util.HashMap` to make the red lines
-in Intellij go away. This will cause the tests to test Java's official implementation 
-of a HashMap. rather than yours.
+But what if we want to model an emergency room, where people waiting with the
+most urgent conditions are helped first? We can't only rely on when the patients
+arrive in the emergency room, since those who arrived first or most recently will
+not necessarily be the ones who need to be seen first.
 
-In today's lab, we'll learn about an *incredible* data structure that can provide
-constant time insertion, removal, and containment checks. Yes, you read that
-correctly: constant, $$\Theta(1)$$, runtime! In the best case scenario, the
-**hash table** can provide amortized constant time access to its elements
-regardless of whether we're working with 10 elements, 1,000 elements, or
-1,000,000 elements.
+As we see with the emergency room, sometimes processing items LIFO or FIFO is
+not what we want. We may instead want to process items in order of *importance*
+or a *priority value*.
 
-Before we jump into hash tables, we'll first introduce a small example class,
-`SimpleNameMap`, that implements some of the basic ideas behind hash tables
-while incorporating the map abstract data type. Through the course of this lab,
-we will add new functionality to the `SimpleNameMap` to make it more robust. For this reason,
-you should perform some simple sanity checks (in the form of small unit tests) between
-each exercise to ensure you are working in the right direction. If you get stuck at any point,
-please ask your TA or an AI to clarify, as each step in this lab will build upon the next! We
-will also analyze the `SimpleNameMap` to see exactly how it works and why we
-need to make a distinction between the best and worst case runtimes.
+The **priority queue** is an abstract data type that will help us do that. The
+priority queue contains the following methods:
 
-Finally, we'll implement a real `HashMap` by generalizing the lessons we learned
-in the process of developing the hash table in the `SimpleNameMap`. Along the
-way, we'll also discuss the merits and drawbacks of Java's `hashCode`, or *hash
-function*, and how we can design our own hash functions.
+`insert(item, priorityValue)`
+: Inserts `item` into the priority queue with priority value `priorityValue`.
 
-## Fast Maps
+`peek()`
+: *Returns* (but does not remove) the item with highest priority in the priority queue.
 
-Recall that we developed a binary search tree that acted as a `Set` back in lab
-13 with the `add` and `contains` methods. It was certainly *quite* fast with
-$$O(\log N)$$ `add`, `contains`, and `remove` assuming a balanced tree. But we
-can do even better!
+`poll()`
+: *Removes* and *returns* the item with highest priority in the priority queue.
 
-How can we design a constant time implementation of `Map`? If you're familiar
-with Python, a map is like a dictionary: it provides a mapping from some key
-(like a word in an English dictionary) to its value (like the definition for
-that word). It's similar to a `Set` in that keys are guaranteed to be unique.
 
-We need to design a data structure where, no matter how many elements we insert
-into the `Map`, we can still retrieve any single element in $$\Theta(1)$$ time.
-If we were to use a binary search tree to maintain our mapping, it can take up
-to $$O(\log N)$$ time to retrieve any single element because we may need to
-traverse $$\log N$$ other nodes to reach a leaf at the bottom of the tree. Our
-goal, then, is to figure out how we can design a `Map` that **does not** need to
-consider any significant portion of other keys.
+It is similar to a `Queue`, though the `insert` method will insert an item with
+a corresponding `priorityValue` and the `poll` method in the priority queue
+will remove the element with the highest priority, rather than the oldest
+element in the queue.
 
-Which data structure have we seen before in class that provides constant-time
-access to any arbitrary element? Highlight to verify your answer:
+### Priority vs. Priority Values
 
-<whiteout>That's right, an array! </whiteout>
+Throughout this lab, we will be making a distinction between the *priority* and
+the *priority value*. *Priority* is how important an item is to the priority
+queue, while *priority value* is the value associated with each item inserted.
+The element with the *highest priority* may not always have the *highest
+priority value*.
 
-We will need to make
-some changes to make it work with the `Map` interface, which we will explore
-throughout this lab, but note that arrays are fast. Unlike a linked list or a
-tree, there’s no need to traverse any part of the collection to reach an
-element: we can simply use bracket notation, `array[i]`, to jump right to the
-`i`<sup>th</sup> index in constant time.
+Let's take a look at two examples.
 
-For the most part, this works great!
+1. If we were in an emergency room and each patient was assigned a number based
+   on how severe their injury was (smaller numbers mean less severe and larger
+   numbers mean more severe), patients with higher numbers would have more
+   severe injuries and should be helped sooner, and thus have higher priority.
+   The numbers the patients are assigned are the *priority values*, so in this
+   case *larger priority values mean higher priority*.
 
-Consider the following implementation of a simple `Map` that maps first names
-(key) to last names (value). This `Map` associates a number with each `key`, and
-this number will refer to the index of the array that this key-value pair should
-be placed. In this scheme, we will let the first letter in each `key` determine
-its index in the final array. For example, if the key is "Alex", the letter 'A'
-tells us that this key-value pair will map to `array[0]`. Listed below are our
-keys and values, and what index each key corresponds to:
+2. Alternatively, if we were looking in our refrigerator and assigned each item
+   in the fridge a number based on how much time this item has left before its
+   expiration date (items with smaller numbers mean that they will expire sooner
+   than items with larger numbers), items with smaller numbers would expire
+   sooner and should be eaten sooner, and thus have higher priority. The numbers
+   each item in the refrigerator are assigned are the *priority values*, so in
+   this case *smaller priority values mean higher priority*.
 
-| Key        | Value           | Array Index |
-|------------|-----------------|-------------|
-| "Alex"     | "Schedel"       | 0           |
-| "Connor"   | "Lafferty"      | 2           |
-| "Henry"    | "Kasa"          | 7           |
-| "Jay"      | "Kakkar"        | 9           |
-| "Matt"     | "Owen"          | 12          |
-| "Parth"    | "Gupta"         | 15          |
-| "Zoe"      | "Plaxco"        | 25          |
+Priority queues come in two different flavors depending on what *priority
+values* it gives *higher priority*:
+- **maximum priority queues** will prioritize elements with **larger priority
+  values** (emergency room), while
+- **minimum priority queues** will prioritize elements with **smaller priority
+  values** (refrigerator).
 
-We can define this conversion in a *hash function*, whose job, when given a key,
-is to return a specific integer for that key. In this case, the hash function
-uses the first character of the name to figure out the correct integer to
-return.
+## Discussion: PQ Implementations
+
+For the following exercises, we will think about the underlying implementations
+for our priority queue. Choose from the following runtimes:
+
+$$\Theta(1), \Theta(\log N), \Theta(N), \Theta(N \log N), \Theta(N^2)$$
+
+Note: For these exercises, each item will be associated with a priority value,
+and we will prioritize items with the smallest priority value first (e.g. like 
+the refrigerator from above).
+
+### Exercise 1: Unordered Linked List
+
+Considering the implementation of a priority queue with an **unordered linked
+list** of $$N$$ elements, determine the runtime for each scenario.
+
+1. In the worst case, describe the runtime to insert an item into the priority
+   queue.
+2. In the worst case, describe the runtime to remove the element with highest
+   priority.
+
+Answer below (highlight to reveal):
+<div style="color: white">
+1. <script type="math/tex">\Theta(1)</script>
+2. <script type="math/tex">\Theta(N)</script>
+</div>
+
+### Exercise 2: Ordered Linked List
+
+Considering the implementation of a priority queue with an **ordered linked
+list** of $$N$$ elements, determine the runtime for each scenario.
+
+1. In the worst case, describe the runtime to insert an item into the priority
+   queue.
+2. In the worst case, describe the runtime to remove the element with highest
+   priority.
+
+Answer below (highlight to reveal):
+<div style="color: white">
+1. <script type="math/tex">\Theta(N)</script>
+2. <script type="math/tex">\Theta(1)</script>
+</div>
+
+### Exercise 3: Balanced Binary Search Tree
+
+Considering the implementation of a priority queue with a **balanced binary
+search tree** of $$N$$ elements, determine the runtime for each scenario.
+
+1. In the worst case, describe the runtime to insert an item into the priority
+   queue.
+2. In the worst case, describe the runtime to remove the element with highest
+   priority.
+
+Answer below (highlight to reveal):
+<div style="color: white">
+1. <script type="math/tex">\Theta(\log(N))</script>
+2. <script type="math/tex">\Theta(\log(N))</script>
+</div>
+
+## Can We Do Better?
+
+For the remainder of this lab, we will study this heap data structure (this is the 
+data structure Java uses to implement its own `PriorityQueue`!) and create our own 
+implementation of a priority queue using a binary min heap. 
+
+> Specifically Java's priority queue is implemented with a **binary min heap** that 
+> will have runtimes better than any of the data structures that we've discussed
+> above. 
+
+## Heaps
+
+A **heap** is a tree-like data structure that will help us implement a
+priority queue with fast operations. In general, heaps will organize elements
+such that the lowest or highest valued element will be easy to access. To use a
+heap as the underlying implementation of a priority queue, we can use the
+priority values of each of the priority queue's items as the elements inside our
+heap. This way, the lowest or highest priority value object will be at the top
+of the heap, and the priority queue's `peek` operation will be very fast.
+
+> This data structure will also be a part of Project 3: Bearmaps. You will implement
+> and learn about the data structure in this lab, then in Project 3 you will make 
+> your implementation even more efficient for a few operations. More on that later!
+
+There are two flavors of heaps: *min* heaps and *max* heaps. They're very
+similar except that min heaps keep smaller elements towards the top of the heap,
+and max heaps keep larger elements towards the top. Whichever heap (min or max)
+that is used as the underlying data structure of the priority queue will
+determine what kind of values inside the heap will correspond to a higher
+priority in the priority queue. For example, if one uses a min heap as the
+underlying representation of a priority queue, then smaller priority values will
+be kept at the top of the heap. This means that priority is given to objects
+with smaller priority values (like our refrigerator example!). This is also how
+Java's `PriorityQueue` organizes its objects under the hood!
+
+Let's now go into the properties of heaps.
+
+### Heap Properties
+
+Heaps are tree-like structures that follow two additional invariants that will
+be discussed more below. Normally, elements in a heap can have any number of
+children, but in this lab we will restrict our view to **binary heaps**, where
+each element will have at most two children. Thus, binary heaps are essentially
+binary trees with two extra invariants. However, it is important to note that
+**they are not binary *search* trees.** The invariants are listed below.
+
+#### Invariant 1: Completeness
+
+In order to keep our operations fast, we need to make sure the heap is well
+balanced. We will define balance in a binary heap's underlying tree-like
+structure as *completeness*.
+
+A **complete tree** has all available positions for elements filled, except for
+possibly the last row, which must be filled left-to-right. A heap's underlying
+tree structure must be complete.
+
+Here are some examples of trees that are complete:
+
+| ![complete-1](img/complete-1.png) | ![complete-2](img/complete-2.png) |
+
+And here are some examples of trees that are **not** complete:
+
+| ![not-complete-1](img/not-complete-1.png) | ![not-complete-2](img/not-complete-2.png) |
+
+#### Invariant 2: Heap Property
+
+Here is another property that will allow us to organize the heap in a way that
+will result in fast operations.
+
+Every element must follow the **heap property**, which states that each element
+$$E$$ must be smaller than all of its children or larger than those of all of
+its children. The former is known as the *min-heap property*, while the latter
+is known as the *max-heap property*.
+
+If we have a min heap, this guarantees that the element with the lowest value
+will always be at the root of the tree. If the elements are our priority values,
+then we are guaranteed that the lowest priority valued element is at the root of
+the tree. This helps us access that item quickly, which is what we need for a
+priority queue!
+
+For the rest of this lab, we will be discussing the representation and
+operations of **binary min heaps**. However, this logic can be modified to apply
+to max heaps or heaps with any number of children.
+
+### Heap Representation
+
+In project 1, we discovered that deques could be implemented using arrays or
+linked nodes. It turns out that this dual representation extends to trees as
+well! Trees are generally implemented using nodes with parent and child links,
+but they can also be represented using arrays.
+
+Here's how we can represent a binary tree using an array:
+
+- The root of the tree will be in position 1 of the array (nothing is at position 0.
+- The left child of a node at position $$N$$ is at position $$2N$$.
+- The right child of a node at position $$N$$ is at position $$2N + 1$$.
+- The parent of a node at position $$N$$ is at position $$N / 2$$.
+
+Because binary heaps are essentially binary trees, we can use this array
+representation to represent our binary heaps!
+
+Note: this representation can be generalized to trees with any variable number
+of children, not only binary trees.
+
+> You might have asked why we placed the root at 1 instead of 0. We do this for this
+> is to to make indexing more convenient. If we instead placed the root at position 0
+> the the following would be our rule:
+> - The left child of a node at position $$N$$ is at position $$2N + 1$$.
+> - The right child of a node at position $$N$$ is at position $$2N + 2$$.
+> - The parent of a node at position $$N$$ is at position $$(N - 1) / 2$$.
+> 
+> Unless otherwise specified we will place the root at position 1 to make the math
+> slightly cleaner.
+
+### Heap Operations
+
+For min heaps, there are three operations that we care about:
+
+`insert`
+: Inserting an element to the heap.
+
+`removeMin`
+: Removing and returning the item with the lowest value. (If we were using our
+min heap to implement a priority queue, this would correspond to removing and
+returning the highest priority element.)
+
+`findMin`
+: Returning the lowest value without removal. (If we were using our min heap to
+implement a priority queue, this would correspond to accessing the highest
+priority element.)
+
+When we do these operations, we need to make sure to maintain the invariants
+mentioned earlier (completeness and the heap property). Let's walk through how
+to do each one.
+
+### `insert`
+
+1. Put the item you're adding in the next available spot in the bottom row of
+   the tree. If the row is full, make a new row. This is equivalent to placing
+   the element in the next free spot in the array representation of the heap.
+   This ensures the completeness of the heap because we're filling in the
+   bottom-most row left to right.
+
+2. If the element that has just been inserted is `N`, swap `N` with its parent
+   as long as `N` is smaller than its parent or until `N` is the
+   new root. If `N` is equal to its parent, you can either swap the items or not.
+   
+   This process is called **bubbling up** (sometimes referred to as
+   **swimming**), and this ensures the min-heap property is satisfied because
+   once we finish bubbling `N` up, all elements below `N` must be greater than
+   it, and all elements above must be less than it.
+
+### `removeMin`
+
+1. Swap the element at the root with the element in the bottom rightmost
+   position of the tree. Then, remove the bottom rightmost element of the tree
+   (which should be the previous root and the minimum element of the heap). This
+   ensures the completeness of the tree.
+
+2. If the new root `N` is greater than either of its children, swap it with that
+   child. If it is greater than both of its children, choose the smaller of the
+   two children. Continue swapping `N` with its children in the same manner
+   until `N` is smaller than its children or it has no children. If `N` is equal
+   to both of its children or is equal to the lesser of the two children, you
+   can choose to swap the items or not. Typically we would choose to not, as doing
+   so would be unnecessary work and our algorithm might be marginally faster if 
+   we skip this work.
+   
+   This is called **bubbling down** (sometimes referred to as **sinking**), and
+   this ensures the min-heap property is satisfied because we stop bubbling down
+   only when the element `N` is less than both of its children and also greater
+   than its parent.
+
+### `findMin`
+
+The element with the smallest value will always be stored at the root due to the
+min-heap property. Thus, we can just return the root node, without changing the
+structure of the heap.
+
+## Heaps Visualization
+
+If you want to see an online visualization of heaps, take a look at the [USFCA
+interactive animation of a min heap][]. You can type in numbers to insert, or
+remove the min element (ignore the `BuildHeap` button for now; we'll talk about
+that later this lab) and see how the heap structure changes.
+
+[USFCA interactive animation of a min heap]: http://www.cs.usfca.edu/~galles/JavascriptVisual/Heap.html
+
+## Discussion: Heaps Practice and Runtimes
+
+### Min Heap Operations
+Assume that we have a binary min-heap(smallest value on top) data structure called
+`Heap` that stores integers and has properly implemented `insert` and `removeMin` 
+methods. Draw the heap and its corresponding array representation after all of the
+operations below have occurred:
 
 ```java
-public class String {
-    public int hashCode() {
-        return (int) (this.charAt(0) - 'A');
-    }
- }
- ```
-
-(Casting an character to an int converts the character into the "associated" number. What is this associated number?
-The [ASCII table](https://en.wikipedia.org/wiki/ASCII#ASCII_printable_code_chart) provides an encoding of letters, 
-starting with capitol letters, and `A` is encoded as value 65. We subtract `'A'` because we want our letters to start
-at zero, rather than 65.)
-
-When we are given this integer, we can then treat it as the index where the
-key-value pair should go in the array!
-
-Now, if we were to put the key-value pairs in the array, it would look as
-follows: 
-
-![simple-name-map](img/simpleMapSu20.png)
-
-Since we know exactly which index each `String` will map to, there's no need to
-iterate across the entire array to find a single element! For example, if we put
-"Parth Gupta" into the map (in the map, this entry will appear as ("Parth",
-"Gupta")), we can find it later by simply indexing to `array[15]` because
-Parth's 'P' lives in the fifteenth array entry. Insertion, removal, and
-retrieval of a single element in this map, no matter how full, will only ever
-take constant time because we can just index based on the first character of the
-key's name.
-
-Now that we've talked a little bit about this map, let's return to hash tables.
-Our map above is actually implementing the foundational ideas of hash tables.
-Hash tables are array-backed data structures and use the integer returned by an
-object's hash function to find the array index of where that object should go.
-In our map, we hash our key and use the return value to figure out where to put
-our key-value pair. We'll learn more about how the hash function plays into the
-hash table later on in the lab.
-
-## Exercise 1: `SimpleNameMap`
-
-In `SimpleNameMap.java`, implement the array-backed data structure based on the
-details listed above. To do so, fill in a constructor that initially creates 26
-empty spaces in the array-backed data structure, add any instance variables, and
-implement the following methods:
-
-```java
-public boolean containsKey(String key);
-public String get(String key);
-public void put(String key, String value);
-public String remove(String key);
+Heap<Character> h = new Heap<>();
+h.insert('f');
+h.insert('h');
+h.insert('d');
+h.insert('b');
+h.insert('c');
+h.removeMin();
+h.removeMin();
 ```
 
-We've started you off with a very basic skeleton containing an `Entry` static
-nested class used to represent an entry (a key-value pair) in our map.
+Answer below (highlight to reveal):
+<div style="color: white">
+Array representation  <script type="math/tex">\texttt{[-,`d',`h',`f']}</script> (- denotes the absence of the first element, typically this will be equivalent to a null element).
+<br><br>
+Heap representation:
+<pre>
+   d
+  / \
+ h   f 
+</pre>
+</div>
 
-You may also want to write your own `hash(String key)` function that works like
-the `String.hashCode()` example introduced above to simplify the code you write.
-Remember that we need to subtract `'A'` when hashing so that the zero-indexing
-will work correctly!
+### Runtimes
 
-Assume for this part of the lab that all keys will be valid names, and all keys
-inserted into this map will start with a different (unique) letter.
+Now that we've gotten the hang of the methods, let's evaluate the worst case
+runtimes for each of them! Consider an array-based min-heap with $$N$$ elements. 
+What is the worst case asymptotic runtime of each of the following operations if we ignore resizing of the internal array? You should answer this question for the 
+operations `insert`, `removeMin`, and `findMin`.
 
-## Test
+Answer below (highlight to reveal):
+<div style="color: white">
+<script type="math/tex">\texttt{insert: }\Theta(\log(N))</script><br>
+<script type="math/tex">\texttt{removeMin: }\Theta(\log(N))</script><br>
+<script type="math/tex">\texttt{findMin: }\Theta(1)</script><br>
+</div>
 
-Before you move on, ensure that your `SimpleNameMap` works as you intend it to.
-Create a small unit test and insert a few items. Use the debugger and assert statements 
-to ensure that elements are properly added and removed. You should also separately test 
-your implementation of containsKey!
+Now consider those same operations but also include the effects of resizing the
+underlying array or `ArrayList`. You should answer this question for the 
+operations `insert`, `removeMin`, and `findMin`. Also assume that we will only 
+resize up and we will not resize down. 
 
-## Not Quite Perfect
+Answer below (highlight to reveal):
+<div style="color: white">
+<script type="math/tex">\texttt{insert: }\Theta(N)</script><br>
+<script type="math/tex">\texttt{removeMin: }\Theta(\log(N))</script><br>
+<script type="math/tex">\texttt{findMin: }\Theta(1)</script><br>
+</div>
 
-Now that we've completed a basic implementation of `SimpleNameMap`, can you spot
-any problems with the design? Consider what happens if we try to add a few more
-of the current staff members to the map. Below, we have a table of the name to
-array index mapping. 
+## `PriorityQueue` Implementation
 
-| Key        | Value           | Array Index |
-|------------|-----------------|-------------|
-| "Ada"      | "Hu"            | 0           |
-| "Alex"     | "Schedel"       | 0           |
-| "Connor"   | "Lafferty"      | 2           |
-| "Henry"    | "Kasa"          | 7           |
-| "Jay"      | "Kakkar"        | 9           |
-| "John"     | "Xiang"         | 9           |
-| "Mike"     | "Chou"          | 12          |
-| "Matt"     | "Owen"          | 12          |
-| "Parth"    | "Gupta"         | 15          |
-| "Zoe"      | "Plaxco"        | 25          |
+Now, let's implement what we've just learned about priority queues and heaps!
+There are a few files given to you in the skeleton, which will be broken down
+here for you:
 
-What are some of the drawbacks of the `SimpleNameMap`?
+- `PriorityQueue.java`: This interface represents our priority queue, detailing
+  what methods we want to exist in our PQ.
+- `MinHeap.java`: This class represents our array-backed binary min heap.
+- `MinHeapPQ.java`: This class represents a possible implementation of a
+  priority queue, which will use our `MinHeap` to implement the `PriorityQueue`
+  interface.
 
-If we simply try to add all the elements in the table above to the map, what
-will happen?
+We will start with implementing our `MinHeap` and then move onto `MinHeapPQ`.
+You do not have to do anything with `PriorityQueue` (it has been provided for
+you).
 
-What if we want to use lowercase letters or special characters as the first
-letter of the name? Or any character, ever, in any language?
+## Exercise: `MinHeap`
 
-And, how can we use this structure with objects other than strings?
+### Representation
 
-Listed below are some of the problems that the current `SimpleNameMap` faces:
-- **Collisions**: Alex and Ada share index 0 while Jay and 
-    John share index 9. What happens if we need to include multiple A-names or
-    J-names in our `SimpleNameMap`?
-
-- **Memory inefficiency**: The size of our array needs to grow with the size of
-  the alphabet. For English, it's convenient that we can just use the first
-  letter of each name as the array index so we only need 26 spaces in our array.
-  However in other languages, that might not be true. To support any possible
-  symbol, we might need an array with a length in the thousands or millions to
-  ensure complete compatibility, even though we may only need to store a handful
-  of names.
-
-- **Hashing**: How do we generalize the indexing strategy in `SimpleNameMap`?
-  The underlying principle behind *hashing* is that it provides a scheme for
-  mapping an arbitrary object to an integer. For `String` names, we can get away
-  with using the first character, but what about other objects? How can we
-  *reliably* hash an object like a `Potato`?
-
-We'll see later that all three of these points above play a large role in the
-runtime and efficiency of a hash table. For the remainder of this lab, we will
-be extending the `SimpleNameMap` to workaround each of these limitations before
-implementing a fully-fledged `HashMap` that implements interface `Map61BL`.
-
-## The Hash Table
-
-### Collisions
-
-In the previous example, the keys had mostly different values, but there were
-still several *collisions* caused by distinct keys sharing the same hash value.
-"Alex" and "Ada" are both distinct keys but they happen to map to the same
-array index, 0, just as "Jay" and "John" share the index 9.
-Other hash functions, like one depending on the length of the first name, could
-produce even more collisions depending on the particular data set.
-
-There are two common methods of dealing with collisions in hash tables, which
-are listed below:
-
-1. **Linear Probing**: Store the colliding keys elsewhere in the array,
-   potentially in the next open array space. This method can be seen with
-   distributed hash tables, which you will see in later computer science courses
-   that you may take.
-
-2. **External Chaining**: A simpler solution is to store all the keys with the
-   same hash value together in a collection of their own, such as a *linked
-   list*.  This collection of entries sharing a single index is called a
-   *bucket*.
-
-We primarily discuss external chaining implemented using linked lists in
-this course. Here are the example entries from the previous step, hashed into a
-26-element map of linked lists using the function based on the first letter of
-the string as defined earlier (the `hashCode` function is duplicated below for
-your convenience).
+In the `MinHeap` class, implement the binary tree representation discussed above
+by implementing the following methods:
 
 ```java
-    public class String {
-        public int hashCode() {
-            return (int) (this.charAt(0) - 'A');
-        }
-    }
+private int getLeftOf(int index);
+private int getRightOf(int index);
+private int getParentOf(int index);
+private int min(int index1, int index2);
 ```
 
-![simple-name-map-external-chaining](img/simpleChainingMapSu20.png)
+Our code will use an `ArrayList` instead of an array so we will not have to
+resize our array manually, but the logic is the same. In addition, make sure to
+look through and use the methods provided in the skeleton (such as `getElement`)
+to help you implement the methods listed above!
 
-Inserting `("Ada", "Hu")` into this map after previously inserting
-`("Alex", "Schedel")` appends Ada's entry to the end of the
-linked list at that index.
+### Operations
 
-*Hint*: Ensure you are using `.equals()` rather than `==` to test the equality of two Objects!
-
-### Discussion: Runtimes
-
-Now for a bit of runtime analysis!
-
-For the following two scenarios, determine with your partner the worst case
-runtime of getting a key with respect to the total number of keys, $$N$$, in the
-map and explain your answer to each other. Assume our hash map implements
-external chaining.
-
-1. All of the keys in the map have different hash codes and get added to
-   **different indices** in the array. An example input might look like:
-   `("Eli", "Lipsitz"), ("Grace", "Altree"), ("Shreya", "Sahoo"),
-   ("Travis", "Reyes")`.
-
-2. All the keys in the map have the same hash code (despite being different
-   keys), and they get added to the **same bucket**. An example input might look
-   like: `("Christopher", "Zou"), ("Connor", "Lafferty"), and ("Claire", "Ko").
-
-If you have any questions, double check with your TA before moving on!
-
-## Exercise 2: External Chaining
-
-First, switch which partner is coding for this part of the lab. Then, let's add
-external chaining to our `SimpleNameMap`.
-
-To implement external chaining, we can use [Java's `LinkedList`](https://docs.oracle.com/javase/7/docs/api/java/util/LinkedList.html) class. You'll
-need to put in a little work to get it working with Java arrays, so see
-[this StackOverflow post](https://stackoverflow.com/questions/529085/how-to-create-a-generic-array-in-java)
-and [this one as well](https://stackoverflow.com/questions/18581002/how-to-create-a-generic-array)
-for workarounds.
-
-In addition, make changes to the following functions to support external
-chaining:
+After you've finished the methods above, fill in the following missing methods
+in `MinHeap.java`:
 
 ```java
-public boolean containsKey(String key);
-public String get(String key);
-public void put(String key, String value);
-public String remove(String key);
+public E findMin();
+private void bubbleUp(int index);
+private void bubbleDown(int index);
+public void insert(E element);
+public int size();
+public E removeMin();
 ```
 
-Remember that any class that implements `Map` **cannot contain duplicate keys**.
+When you implement `insert` and `removeMin`, you should be using `bubbleUp`
+and/or `bubbleDown`, and when you implement `bubbleUp` and `bubbleDown`, you
+should be using the methods you wrote above (such as `getLeft`, `getRight`,
+`getParent`, and `min`) and the ones provided in the skeleton (such as `swap`
+and `setElement`).
+
+**It is highly recommended to use the `swap` and `setElement` methods if you
+ever need to swap the location of two items or add a new item to your heap.**
+This will help keep your code more organized and make the next task of the lab
+a bit more straightforward.
+
+Usually `MinHeap`'s should be able to contain duplicates but for the `insert`
+method, **assume that our `MinHeap` cannot contain duplicate items**. To do
+this, use the `contains` method to check if `element` is in the `MinHeap` before
+you insert. If `element` is already in the `MinHeap`, throw an
+`IllegalArgumentException`. We'll talk about how to implement `contains` in the
+next section.
+
+Before moving on to the next section, we suggest that you test your code! We
+have provided a blank `MinHeapTest.java` file for you to put any JUnit tests
+you'd like to ensure the correctness of your methods.
+
+## Exercise: `update` and `contains`
+
+We have two more methods that we would like to implement (`contains` and
+`update`) whose behaviors are described below:
+
+- `contains(E element)`: Checks if `element` is in our `MinHeap`.
+- `update(E element)`: If `element` is in the `MinHeap`, replace the `MinHeap`'s
+  version of this element with `element` and update its position in the
+  `MinHeap`. (This would be used if our element was somehow mutated since its
+  initial insert.)
+
+> These two methods will be very helpful when we use this data structure in Project
+> 3! For this lab you will not be required to implement the more efficient versions
+> of the methods here, but if you do then you will finish one part of the project!
+
+Let's take a look at the `update` method first.
+
+### `update(E element)`
+
+The `update(E element)` method will consist of the following four steps:
+
+1. Check if `element` is in our `MinHeap`.
+1. If so, find the `element` in our `MinHeap` (by finding the index the
+   element is at).
+2. Replace the element with the new `element`.
+2. Bubble `element` up or down depending on how it was changed since its initial
+   insertion into the `MinHeap`.
+
+Unfortunately, Steps 1 and 2 (checking if our `element` is present and finding
+the `element`) are actually nontrivial linear time operations since heaps are
+not optimized for this operation. To check if our heap contains an item, we'll
+have to iterate through our entire heap, looking for the item (see "Search"'s
+runtime [here](https://en.wikipedia.org/wiki/Binary_heap)). There is a small
+optimization that we can make for this part if we know we have a max heap, but
+this would in general make our `update` method run in at least linear time.
+
+This is not extremely bad, but applications of our heap (such as route finding
+in Project 3, BearMaps, which we'll talk more about once the project is
+released) would really benefit from having a fast `update` method.
+
+> We can get around this by introducing another data structure to our heap! Though 
+> this would increase the space complexity of the heap and is not how Java implements
+> `PriorityQueue`, it will be worth the runtime speedup of our `update` method in our
+> applications of our heap in Project 3.
+> 
+> We would essentially want to use this extra data structure to speed to help us
+> make step 1 (checking if our `MinHeap` contains a particular element) and step 2 
+> (get the index corresponding to a particular element) fast. 
+>
+> In order to implement this new optimized version you may need to update some 
+> methods in order to ensure that this data structure always has accurate 
+> information. There is no need to implement these optimization for this lab, but
+> they will be required for Project 3.
+
+Implement `update(E element)` according to the steps listed above. Remember if
+`element` is not in the `MinHeap`, you should throw a `NoSuchElementException`. 
+**Again, the optimized `update(E element)` operation is not required for this lab.**
 
 
-*Hint*: ensure you are **initializing** your LinkedLists at instantiation.
+### `contains(E element)`
 
-### Memory Inefficiency
+Now, implement `contains(E element)`.
 
-Another issue that we discussed is memory inefficiency: for a small range of
-hash values, we can get away with an array that individuates each hash value.
-This works well if our indices are small and close to zero. But remember that
-Java's 32-bit integer type can support numbers anywhere between -2,147,483,648
-and 2,147,483,647. Now, most of the time, our data won't use anywhere near that
-many values. But even if we only wanted to support special characters, our array
-would still need to be 1,112,064 elements long!
+> Note that if you do choose to implement the optimized approach we have hinted at
+> above, you can use the same data structure to implement a faster `contains` 
+> operation! Again this only will matter for the project so do not worry about this
+> if you have chosen to wait to implement the optimized version. 
 
-Instead, we'll slightly modify our indexing strategy. Let's say we only want to
-support an array of length 10 so as to avoid allocating excessive amounts of
-memory. How can we turn a number that is potentially millions or billions large
-into a value between 0 and 9, inclusive?
+## Exercise: `MinHeapPQ`
 
-The modulo operator allows us to do just that. The result of the *modulo
-operator* is like a remainder. For example, `65 % 10 = 5` because, after
-dividing 65 by 10, we are left with a remainder of 5. Note that you can read the
-expression as "65 mod 10". Thus, `3 % 10 = 3`, `20 % 10 = 0`, and `19 % 10 = 9`.
-Returning to our original problem, we want to be able to convert any arbitrary
-number to a value between 0 and 9, inclusive. Given our discussion on the modulo
-operator, we can see that any number mod 10 will return an integer value between
-0 and 9. This is exactly what we need to index into an array of size 10!
+Now let's use the `MinHeap` class to implement our own priority queue! We will
+be doing this in our `MinHeapPQ` class.
 
-More generally, we can locate the correct index for any `key` with the
-following,
+Take a look at the code provided for `MinHeapPQ`, a class that implements the
+`PriorityQueue` interface. In this class, we'll introduce a new wrapper class
+called `PriorityItem`, which wraps the `item` and `priorityValue` in a single
+object. This way, we can use `PriorityItem`'s as the elements of our underlying
+`MinHeap`.
 
-```java
-Math.floorMod(key.hashCode(), array.length)
-```
-
-where `array` is the underlying array representing our hash table.
-
-In Java, the `floorMod` function will perform the modulus operation while
-correctly accounting for negative integers, whereas `%` does not.
-
-## Exercise 3: Modulo
-
-Make changes to the following functions to support modulo.
-
-```java
-public boolean containsKey(String key);
-public String get(String key);
-public void put(String key, String value);
-public String remove(String key);
-```
-
-### Hashing
-
-The last problem of our `SimpleNameMap` was that not all objects can be easily
-converted into a number. However, the idea underlying *hashing* is the
-transformation of _any object_ into a number. If this transformation is fast and
-different keys transform into different values, then we can convert that number
-into an index and use that index to index into the array. This will allow us to
-approximate the direct, constant-time access that an array provides, resulting
-in near constant-time access to elements in our hash table.
-
-The transforming function is called a *hash function*, and the `int` return
-value is the *hash value*. In Java, hash functions are defined in the object's
-class as a method called `hashCode()` with return value `int`. The built-in
-`String` class, for example, might have the following code.
-
-```java
-public class String {
-    public int hashCode() {
-        ...
-    }
-}
-```
-
-This way, we can simply call `key.hashCode()` to generate an integer hash code
-for a `String` instance called `key`.
-
-## Exercise 4: `hashCode()`
-
-First, switch which partner is coding for this part of the lab. Then, modify our
-`SimpleNameMap` so that, instead of using the first character as the index, we
-instead use `key`'s `hashCode()` method.
-
-Make changes to the following functions to support using a `key`'s `hashCode()`.
-
-```java
-public boolean containsKey(String key);
-public String get(String key);
-public void put(String key, String value);
-public String remove(String key);
-```
-
-Note that, to use `hashCode()`'s results as an index, we must convert the
-returned hash value to a valid index. Because `hashCode()` can return negative
-values, use the `floorMod` operation discussed above!
-
-If you created a `hash` function from earlier to help hash your `String`s, you
-can now delete this (we have a better `hashCode()` function now!).
-
-## Hash Function Properties
-
-We learned earlier that collisions are troublesome: exactly how many collisions
-occur makes the difference between a pretty good runtime and a not so good
-runtime. We need a hash function that distributes our keys as evenly as possible
-throughout the map in order to reduce the number of collisions so we can
-guarantee a close to constant time runtime for all of our operations.
-
-But first off, what hash functions can we choose from? Are all functions that
-return a number for each object a valid hash function? What makes a hash
-function good?
-
-A hash function is **valid** if:
-
-- The hash function of two objects A and B (who are equal to each other
-  according to their `.equals()` method) are the same value. We call this requirement
-  `determinism`.
-- The hash function returns the same integer every time it is called on the same
-  object. We call this requirement `consistency`.
-
-Note that there are no requirements that state that unequal items should have
-different hash function values.
-
-The properties of a **good** hash function is less defined, but here are some
-properties that are important for a good hash function (this is a non-exhaustive
-list):
-
-- The hash function should be valid. 
-- Hash function values should be spread as
-  uniformly as possible over the set of all integers.
-- The hash function should be relatively quick to compute. (Don't worry too much
-  about the specifics of this if this sounds vague to you. Just be aware that
-  the hash function should not be unreasonably expensive to compute relative to
-  the size of what you are hashing.)
-
-If you have any other ideas about what makes a good hash function, be sure to
-check in with your TA!
-
-## Load Factor
-
-No matter what, if the underlying array of our hash table is small and we add a
-lot of keys to it, then we will start getting more and more collisions. Because
-of this, a hash table should expand its underlying array once it starts to fill
-up (much like how an `ArrayList` expands once it fills up).
-
-To keep track of how full our hash table is, we define the term **load factor**,
-which is the ratio of the number of entries over the total physical length of
-the array.
-
-$$\text{load factor} = \frac{\texttt{size()}}{\texttt{array.length}}$$
-
-For our hash table, we will define the maximum load factor that we will allow.
-**If adding another key value pair would cause the load factor to exceed the
-specified maximum load factor, then the hash table should resize.** This is
-usually by doubling the underlying array length. Java's default maximum load
-factor is 0.75 which provides a good balance between a reasonably-sized array
-and reducing collisions.
-
-Note that if we are trying to add a key-value pair and the key already exists in
-the hash map, the corresponding value should be updated but no resizing should
-occur.
-
-As an example, let's see what happens if our hash table has an array length of
-10 and currently contains 7 elements. Each of these 7 elements are hashed modulo
-10 because we want to get an index within the range of 0 through 9. The current
-load factor is $$\frac{7}{10}$$, or 0.7, just under the threshold.
-
-If we try to insert one more element, we would have a total of 8 elements in our
-hash table and a load factor of 0.8. Because this would cause the load factor to
-exceed the maximum load factor, we must resize the underlying array to length 20
-before we insert the element. Remember that since our procedure for locating an
-entry in the hash table is to take the `hashCode() % array.length` and since our
-array's length has changed from 10 to 20, all the elements in the hash table
-need to be relocated. Once all the elements have been relocated and our new
-element has been added, we will have a load factor of $$\frac{8}{20}$$, or 0.4,
-which is below the maximum load factor.
-
-## Exercise 5: Resizing
-
-Update `SimpleNameMap` to include the automatic resizing feature described
-above. For the purposes of this assignment, only implement resizing upwards from
-smaller arrays to larger arrays. (Java's `HashMap` also resizes downward if
-enough entries are removed from the map.)
-
-To do this, you will need add a method to keep track of the size of the
-`SimpleNameMap` (size is the number of items inside the map, not the length of
-the underlying array) and store what the maximum load factor is for this map
-(use `double`s to represent your load factors). The signature for the `size()`
-method is given below.
+Then, implement the remaining methods of the interface (duplicated below) of the
+`MinHeapPQ` class
 
 ```java
+public T peek();
+public void insert(T item, double priority);
+public T poll();
+public void changePriority(T item, double priority);
 public int size();
 ```
 
-In addition, make changes to the `put` function to support resizing. The
-signature for the `put` method is given below.
+For the `changePriority` method, use the `update` method from the `MinHeap`
+class. The `contains` method has already been implemented for you.
 
-```java
-public void put(String key, String value);
-```
+Note: you shouldn't have to write too much code in this file. Remember that your
+`MinHeap` will do most of the work for you!
 
-A couple notes:
+After you finish implementing these methods, we recommend that you test your
+code! Just like with `MinHeap`, we have provided a blank `MinHeapPQTest.java`
+file so you can write JUnit tests to ensure your code is working properly.
 
-- It might help to write a `resize` helper method instead of trying to cram all
-  the details into `put`!
-- Remember that you should only resize if the addition introduces a new key
-  (updating old key-value pairs do not count) and you should check if you need
-  to resize **before** adding the new element.
-- Dividing an integer by another integer will round your result down to the
-  nearest integer.
+### `compareTo()` vs `.equals()`
 
-## Exercise 6: `HashMap`
+You may have noticed that the `PriorityItem` has a `compareTo` method that
+compares priority values, while the `equals` method compares the items
+themselves. Because of this, it's possible that `compareTo` will return 0 (which
+usually means the items that we are comparing are equal) while `equals` will
+still return false. However, according to the Javadocs for
+[Comparable](https://docs.oracle.com/javase/8/docs/api/java/lang/Comparable.html):
 
-We've covered all the basics in a hash map. Now, let's write `HashMap.java`!
-Or, rather, since we've already written `SimpleNameMap.java`, let's just make
-the necessary changes to generalize the code to comply with the`Map61BL`
-interface.
+> It is strongly recommended, but not strictly required that `(x.compareTo(y) == 0)
+> == (x.equals(y))`. Generally speaking, any class that implements the Comparable
+> interface and violates this condition should clearly indicate this fact.
 
-First, switch which partner is coding for this portion of the lab. Then, copy
-`SimpleNameMap.java` to a file named `HashMap.java` and modify the type
-parameters everywhere in the code so that the key and value are generic types.
-For example, the class header might read:
+Thus, our `PriorityItem` class "has a natural ordering that is inconsistent with
+equals". Normally, we would want `x.compareTo(y) == 0` and `x.equals(y)` to both
+return true for the same two objects, but this class will be an exception.
 
-```java
-public class HashMap<K, V> implements Map61BL<K, V>
-```
+## Discussion: Heap Brainteasers
 
-You will need to add generic type parameters to your `Entry` class as well (just
-as we did for `HashMap`, and replace all instances of `Entry` in your code with
-`Entry<K, V>` (or whatever generic variables to intend on using).
+Now, let's get into some deeper questions about heaps.
 
-In addition, modify the parameters and return values of the methods.
+### Heaps and BSTs
+Consider binary trees that are both **max** heaps and binary search trees.
 
-Then, add and implement the remaining functions of the `Map61BL` interface,
-listed below:
+How many nodes can such a tree have? Choose all that apply.
 
-```java
-// Descriptions of what each method should do can be found in the Map61BL
-// interface.
-public void clear();
-public boolean remove(K key, V value);
-public Iterator<K> iterator();
-```
+- 1 node
+- 2 nodes
+- 3 nodes
+- 4 nodes
+- 5 nodes
+- Any number of nodes
+- No trees exist
 
-**Implementing the `iterator()` method is optional**, but the skeleton and tests
-have been provided for you if you want the additional practice implementing
-iterators. If you choose not to implement this method, have the `iterator()`
-method throw a new `UnsupportedOperationException`.
+Answer below (highlight to reveal):
+<div style="color: white">
+Such a tree can either have either 1 node or 2 nodes.
+</div>
 
-If you choose to implement `iterator()`, you may find it useful to write another
-inner class, as we have done in previous labs. Because `remove` of the
-`Iterator` interface is an optional method, the iterator does not need to have
-it implemented and you may throw an `UnsupportedOperationException` in that
-case.
+### Determining Completeness
+It's not obvious how to verify that a binary tree is complete (assuming it is
+represented using children links rather than an array as we have discussed in this 
+lab). A CS 61BL student suggests the following recursive algorithm to determine if a 
+tree is complete:
 
-To speed up testing, we've provided the full test suite in the skeleton. Our
-tests expect a couple of extra constructors and methods (listed below) so make
-sure to implement these in your `HashMap` as well.
+1. A one-node tree is complete.
 
-```java
-/* Creates a new hash map with a default array of size 16 and a maximum load factor of 0.75. */
-HashMap();
+2. A tree with two or more nodes is complete if its left subtree is complete and
+   has depth $$k$$ for some $$k$$, and its right subtree is complete and has
+   depth $$k$$ or $$k - 1$$.
 
-/* Creates a new hash map with an array of size INITIALCAPACITY and a maximum load factor of 0.75. */
-HashMap(int initialCapacity);
+Here are some example trees. Think about whether or not the student's proposed
+algorithm works correctly on them.
 
-/* Creates a new hash map with INITIALCAPACITY and LOADFACTOR. */
-HashMap(int initialCapacity, double loadFactor);
+![sample-trees](img/sample-trees.jpg)
 
-/* Returns the length of this HashMap's internal array. */
-public int capacity();
-```
+Choose all that apply to test your understanding of the proposed algorithm.
 
-## Discussion: Wrap Up
+- Tree 1 is complete
+- Tree 1 would be identified as complete
+- Tree 2 is complete
+- Tree 2 would be identified as complete
+- Tree 3 is complete
+- Tree 3 would be identified as complete
+- Tree 4 is complete
+- Tree 4 would be identified as complete
 
-We have now finished the main part of the lab, though here are a few
-miscellaneous questions that you may have come up with throughout the course of
-the lab.
+Answer below (highlight to reveal):
+<div style="color: white">
+The correct answers are: "Tree 1 would be identified as complete", "Tree 2 is 
+complete", "Tree 2 would be identified as complete", and "Tree 4 would be identified
+as complete".
+</div>
 
-1. We've learned that external chaining is one method for resolving collisions
-   in our hash table. But why use a linked list? Why not use an array instead?
-   What are the benefits and drawbacks of each?
+### Third Biggest Element in a Max Heap
+Here's an example **max** heap.
 
-2. How does the load factor play a part in this? Assuming that the keys are
-   perfectly distributed, how many entries should be in each bucket and how does
-   this affect the runtime?
+![third-largest](img/third-largest.jpg)
 
-3. Additionally, we forgot to put two staff members, "Alex Schedel" and "Alex
-   Feng", into our map! However, if we tried to put both of them into our
-   map, they would override each other's entries since keys must be unique. Is
-   it possible to modify our data structure so that both people can be in the
-   map? If not, what other data structures can we use so we can store all the
-   staff members?
+Which nodes could contain the third largest element in the heap **assuming that
+the heap does not contain any duplicates**?
 
-Discuss all these questions with your partner, and make sure to ask the lab
-staff if you have any questions.
+Answer below (highlight to reveal):
+<div style="color: white">
+Nodes: B, C, D, E, F, and G.
+</div>
+
+Which nodes could contain the third largest element in the heap **assuming that
+the heap can contain duplicates**?
+
+Answer below (highlight to reveal):
+<div style="color: white">
+Nodes: B, C, D, E, F, G, H, I, J, K, L, M, N, and O.
+</div>
+
+## Other Heap Applications
+
+### Heapsort
+
+Now, let's move onto an application of the heap data structure. Suppose you have
+an array of $$N$$ numbers that you want to sort smallest-to-largest. One
+algorithm for doing this is as follows:
+
+1. Put all of the numbers in a min heap.
+2. Repeatedly remove the min element from the heap, and store them in an array
+   in that order.
+
+This is called **heapsort**.
+
+Now, what is the runtime of this sort? Since each insertion takes proportional
+to $$\log N$$ comparisons once the heap gets large enough and each removal also
+takes proportional to $$\log N$$ comparisons, the whole process takes
+proportional to $$N \log N$$ comparisons.
+
+It turns out we can actually make step 1 of heapsort run faster---proportional
+to $$N$$ comparisons---using a process called *heapify*. (Unfortunately, we
+can't make step 2 run any faster than $$N \log N$$, so the overall heapsort
+must take $$N \log N$$ time.)
+
+> We will learn more about heapsort and other sorting algorithms later on in 
+> the course!
+
+### Heapify
+
+The algorithm for taking an arbitrary array and making it into a min (or max)
+heap in time proportional to $$N$$ is called *heapify*. Pseudocode for this
+algorithm is below:
+
+    def heapify(array):
+        index = N / 2
+        while index > 0:
+            bubble down item at index
+            index -= 1
+
+Conceptually, you can think of this as building a heap from the bottom up. To
+get a visualization of this algorithm working, click on the `BuildHeap` button
+on [USFCA interactive animation of a min heap][]. This loads a pre-set array
+and then runs heapify on it.
+
+Try to describe the approach in your own words. Why does the index start at the
+middle of the array rather than the beginning, `0`, or the end, `N`? How does
+each bubble down operation maintain heap invariants?
+
+It is probably not immediately clear to you why this heapify runs in $$O(N)$$.
+For those who are curious, you can check out [this stack overflow post][] or an [explanation on Wikipedia][].
+
+[explanation on Wikipedia]: https://en.wikipedia.org/wiki/Binary_heap#Building_a_heap
+
+[this stack overflow post]: https://stackoverflow.com/questions/9755721/how-can-building-a-heap-be-on-time-complexity
 
 ## Conclusion
 
-## A Discussion of Runtime
+In today's lab, we learned about another abstract data type called the
+**priority queue**. Priority queues can be implemented in many ways, but it is
+often implemented with a binary min heap. It is very easy to conflate the
+priority queue abstract data type and the heap data structure, so make sure to
+understand the difference between the two!
 
-So now you've implemented your HashSet (or at least read the spec) and (hopefully) satisfied the runtime constraints. 
-We have seen other data structures in this class which rarely have such good runtime. 
-How can we store so many elements efficiently with such good runtime? 
-How do our decisions about when and how to resize affect this?
+Additionally, we learned how to represent a heap with an array, as well as some
+of its core operations. We then explored a few conceptual questions about heaps
+and learned about a new sort that this new data structure provides, heapsort.
 
-For an intuitive metaphor for this, check out [Amortized Analysis (Grigometh's Urn)](https://joshhug.gitbooks.io/hug61b/content/chap8/chap84.html).
-
-If you are more visually inclined, here is one way to visualize the runtime in the form of a graph. 
-We'll assume here that our hashcode is very good and we don't get very many collisions (a powerful assumption). 
-When we first create our HashSet, let's say we decide to start with an outer array of size 4. This means we 
-can have constant runtime for our first four insertions. 
-Each operation will only take one unit of time.
-
-![first](img/firstInsert.png)
-
-
-When we reach our load factor and have to resize, let's say we decide to make an array of size 8 and 
-copy over our four current items—which takes four constant time lookups.
-
-![four](img/make4.png)
-
-
-That is a big spike! How can we say this is constant? Well, we will now have eight fast inserts! Wow!
-
-![eight](img/8Inserts.png)
-
-
-A pattern starts to emerge. Once we have again reached our load factor there will be a spike, 
-followed by a sequence of "inexpensive" inserts. These spikes, however, are growing rapidly!
-
-![resize](img/resizeTo8.png)
-
-
-If we imagine this continuing, each spike will get bigger and bigger! Perhaps counter intuitively, 
-this runtime, viewed over a long time, is actually constant if the work is "amortized" over all of our inserts. 
-Here amortized means that we are spreading the cost of an expensive operation over all our operations. 
-This gives us a constant runtime overall for a large sequence of inserts and resizes. 
-To convince yourself of this visually, imagine "tipping" the size four spike so that it adds one 
-operation to each of the four fast inserts before it. Now each insert operation is taking about 2 units of work, 
-which is constant! We can see this pattern will continue. We can "tip" our size eight resize across the eight previous 
-fast operations! Try drawing a few more resizes out and convince yourself that the spike will always fit.
-
-We have now gotten to the heart of the efficacy of HashSets.
-Would we get this behavior if we picked a resizing scheme which was additive and not multiplicative? 
-Discuss with your partner and then highlight to verify your answer:
-<p><span style="color:white"><em>No! It must be a multiplicative resize scheme. Try drawing the same graphs with an additive scheme.
-Do the spikes match the valleys? Nope! </em></span>.</p>
-
-### Summary
-
-In this lab, we learned about *hashing*, a powerful technique for turning a
-complex object like a `String` into a smaller, discrete value like a Java `int`.
-The *hash table* is a data structure which combines this *hash function* with
-the fact that arrays can be indexed in constant time. Using the hash table and
-the map abstract data type, we can build a `HashMap` which allows for amortized
-constant time access to any key-value pair so long as we know which bucket the
-key falls into.
-
-However, we quickly demonstrated that this naive implementation has several
-drawbacks: *collisions*, *memory inefficiencies*, and the *hash function*
-itself. To workaround each of these challenges, we introduced three different
-features:
-
-- We added **external chaining** to solve collisions by allowing multiple
-  entries to live in a single bucket.
-
-- To allow for smaller array sizes, we used the **modulo** operator to shrink
-  hash values down to within a specified range.
-
-- Lastly, we designed and used different `hashCode()` functions to see how
-  different hash functions distributed keys and how it affects the runtime of
-  the hash table.
+All in all, priority queues are an integral component of many algorithms for
+graph processing (which we'll cover in a few labs). For example, in the first few weeks of CS 170, Efficient Algorithms and Intractable Problems, you will see
+graph algorithms that use priority queues.  Look out for priority queues
+in other CS classes as well! You'll find them invaluable in the operating
+systems class CS 162, where they're used to schedule which processes in a
+computer to run at what times. They'll also be very helpful in Project 3:
+BearMaps, when we are dealing with route finding.
 
 ### Deliverables
 
-Complete the implementation of `HashMap.java` with:
-- external chaining,
-- the modulus operator,
-- use of the `hashCode` method,
-- resizing, and
-- miscellaneous methods of the `Map61BL` interface.
+To receive credit for this lab:
+
+- Complete `MinHeap.java`
+- Complete `MinHeapPQ.java`
